@@ -1,1 +1,84 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>PDSME – Gestione Offerte</title>
+<style>
+body { font-family: Arial; margin: 30px; background:#f5f5f5 }
+h1 { margin-bottom: 5px }
+input, button { padding: 6px; margin: 4px }
+.box { background:#fff; padding:15px; margin-bottom:20px; border-radius:6px }
+table { width:100%; border-collapse: collapse }
+td, th { border-bottom:1px solid #ccc; padding:6px }
+</style>
+</head>
+<body>
+
+<h1>Mini Gestionale Offerte – PDSME</h1>
+
+<div class="box">
+<h3>Nuovo Preventivo</h3>
+<input id="codiceEsterno" placeholder="Codice esterno">
+<button onclick="creaPreventivo()">Crea</button>
+<p><b>Codice interno:</b> <span id="codiceInterno">—</span></p>
+</div>
+
+<div class="box">
+<h3>Lotti</h3>
+<input id="descrizione" placeholder="Descrizione lotto">
+<input id="prezzo" type="number" placeholder="Prezzo">
+<input id="pdf" type="file" accept="application/pdf">
+<button onclick="aggiungiLotto()">Aggiungi lotto</button>
+<ul id="lotti"></ul>
+</div>
+
+<script>
+let db;
+let currentPreventivo = null;
+
+const openDB = indexedDB.open("pdsmeDB",1);
+openDB.onupgradeneeded = e => {
+  db = e.target.result;
+  db.createObjectStore("preventivi",{keyPath:"id",autoIncrement:true});
+};
+openDB.onsuccess = e => db = e.target.result;
+
+function creaPreventivo(){
+  const tx = db.transaction("preventivi","readwrite");
+  const store = tx.objectStore("preventivi");
+  store.getAll().onsuccess = e => {
+    const n = e.target.result.length + 1;
+    const codice = String(n).padStart(4,"0")+"-PDSME";
+    document.getElementById("codiceInterno").innerText = codice;
+    currentPreventivo = codice;
+    store.add({ codice, esterno: codiceEsterno.value, lotti: [] });
+  };
+}
+
+function aggiungiLotto(){
+  if(!currentPreventivo){ alert("Crea prima il preventivo"); return }
+  const file = pdf.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    const tx = db.transaction("preventivi","readwrite");
+    const store = tx.objectStore("preventivi");
+    store.getAll().onsuccess = e => {
+      const p = e.target.result.find(x=>x.codice===currentPreventivo);
+      p.lotti.push({
+        descrizione: descrizione.value,
+        prezzo: prezzo.value,
+        pdf: reader.result
+      });
+      store.put(p);
+      const li = document.createElement("li");
+      li.innerText = `${p.lotti.length} – ${descrizione.value} – €${prezzo.value}`;
+      lotti.appendChild(li);
+    };
+  };
+  reader.readAsDataURL(file);
+}
+</script>
+
+</body>
+</html>
 
