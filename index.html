@@ -33,51 +33,81 @@ td, th { border-bottom:1px solid #ccc; padding:6px }
 </div>
 
 <script>
-let db;
-let currentPreventivo = null;
+<script>
+function creaPreventivo() {
+  const codice = codiceEsterno.value.trim();
+  if (!codice) {
+    alert("Inserisci il codice");
+    return;
+  }
 
-const openDB = indexedDB.open("pdsmeDB",1);
-openDB.onupgradeneeded = e => {
-  db = e.target.result;
-  db.createObjectStore("preventivi",{keyPath:"id",autoIncrement:true});
-};
-openDB.onsuccess = e => db = e.target.result;
+  const quantita = prompt("Quantità:");
+  if (quantita === null) return;
 
-function creaPreventivo(){
-  const tx = db.transaction("preventivi","readwrite");
+  const prezzo = prompt("Prezzo unitario:");
+  if (prezzo === null) return;
+
+  const data = new Date().toLocaleDateString("it-IT");
+
+  const tx = db.transaction("preventivi", "readwrite");
   const store = tx.objectStore("preventivi");
-  store.getAll().onsuccess = e => {
-    const n = e.target.result.length + 1;
-    const codice = String(n).padStart(4,"0")+"-PDSME";
-    document.getElementById("codiceInterno").innerText = codice;
-    currentPreventivo = codice;
-    store.add({ codice, esterno: codiceEsterno.value, lotti: [] });
-  };
-}
 
-function aggiungiLotto(){
-  if(!currentPreventivo){ alert("Crea prima il preventivo"); return }
-  const file = pdf.files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    const tx = db.transaction("preventivi","readwrite");
-    const store = tx.objectStore("preventivi");
-    store.getAll().onsuccess = e => {
-      const p = e.target.result.find(x=>x.codice===currentPreventivo);
-      p.lotti.push({
-        descrizione: descrizione.value,
-        prezzo: prezzo.value,
-        pdf: reader.result
-      });
-      store.put(p);
-      const li = document.createElement("li");
-      li.innerText = `${p.lotti.length} – ${descrizione.value} – €${prezzo.value}`;
-      lotti.appendChild(li);
-    };
+  store.getAll().onsuccess = e => {
+    const records = e.target.result;
+    let record = records.find(r => r.codiceEsterno === codice);
+
+    if (record) {
+      const ok = confirm(
+        "Codice già presente.\nVuoi aggiungere una nuova offerta allo storico?"
+      );
+      if (!ok) return;
+
+      record.offerte.push({ quantita, prezzo, data });
+      store.put(record);
+      mostraPreventivi();
+    } else {
+      const progressivo = String(records.length + 1).padStart(4, "0") + "-PDSME";
+
+      record = {
+        codiceEsterno: codice,
+        codiceInterno: progressivo,
+        offerte: [{ quantita, prezzo, data }]
+      };
+
+      store.add(record);
+      mostraPreventivi();
+    }
   };
-  reader.readAsDataURL(file);
 }
 </script>
+<script>
+function mostraPreventivi() {
+  const lista = document.getElementById("lotti");
+  lista.innerHTML = "";
+
+  const tx = db.transaction("preventivi", "readonly");
+  const store = tx.objectStore("preventivi");
+
+  store.getAll().onsuccess = e => {
+    e.target.result.forEach(p => {
+      const li = document.createElement("li");
+
+      let html = `<b>${p.codiceEsterno}</b> (${p.codiceInterno})<br>`;
+
+      p.offerte.forEach((o, i) => {
+        const ultimo = i === p.offerte.length - 1;
+        html += `&nbsp;&nbsp;• ${o.quantita} pz – ${o.prezzo} € cad – ${o.data}`;
+        if (ultimo) html += " <b>← ultima offerta</b>";
+        html += "<br>";
+      });
+
+      li.innerHTML = html;
+      lista.appendChild(li);
+    });
+  };
+}
+</script>
+
 
 </body>
 </html>
